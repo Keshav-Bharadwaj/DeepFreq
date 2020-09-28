@@ -20,6 +20,7 @@ def set_fr_module(args):
         raise NotImplementedError('Frequency representation module type not implemented')
     if args.use_cuda:
         net.cuda()
+
     return net
 
 
@@ -41,6 +42,7 @@ def set_fc_module(args):
         NotImplementedError('Counter module type not implemented')
     if args.use_cuda:
         net.cuda()
+
     return net
 
 
@@ -81,7 +83,7 @@ class FrequencyRepresentationModule(nn.Module):
         mod = []
         for n in range(n_layers):
             mod += [
-                nn.Conv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size - 1, bias=False,
+                nn.Conv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size // 2, bias=False,
                           padding_mode='circular'),
                 nn.BatchNorm1d(n_filters),
                 nn.ReLU(),
@@ -102,11 +104,11 @@ class FrequencyRepresentationModule(nn.Module):
 class FrequencyCountingModule(nn.Module):
     def __init__(self, n_output, n_layers, n_filters, kernel_size, fr_size, downsampling, kernel_in):
         super().__init__()
-        mod = [nn.Conv1d(1, n_filters, kernel_in, stride=downsampling, padding=kernel_in - downsampling,
+        mod = [nn.Conv1d(1, n_filters, kernel_in, stride=downsampling, padding=kernel_in // 2,
                              padding_mode='circular')]
         for i in range(n_layers):
             mod += [
-                nn.Conv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size - 1, bias=False,
+                nn.Conv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size // 2, bias=False,
                           padding_mode='circular'),
                 nn.BatchNorm1d(n_filters),
                 nn.ReLU(),
