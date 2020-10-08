@@ -15,6 +15,20 @@ import util
 from data.noise import noise_torch
 from data import fr
 from data.loss import fnr
+import numpy as np
+# complex valued tensor class
+from cplxmodule import cplx
+from cplxmodule.nn.relevance import penalties
+# converters
+from cplxmodule.nn import RealToCplx, CplxToReal
+# layers of encapsulating other complex valued layers
+from cplxmodule.nn import CplxSequential
+# common layers
+from cplxmodule.nn import CplxConv1d, CplxLinear
+# activation layers
+from cplxmodule.nn import CplxModReLU,CplxBatchNorm1d
+from cplxmodule.nn.modules import CplxConvTranspose1d
+from cplxmodule.nn.masked import  named_masks
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +46,21 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
             clean_signal, target_fr = clean_signal.cuda(), target_fr.cuda()
         noisy_signal = noise_torch(clean_signal, args.snr, args.noise)
         fr_optimizer.zero_grad()
-        output_fr = fr_module(noisy_signal)
-        loss_fr = fr_criterion(output_fr, target_fr)
+        cplx = RealToCplx()(noisy_signal)
+        output_fr = fr_module(cplx)
+        y = named_masks(output_fr)
+        real_input_model = torch.nn.Sequential(CplxToReal(output_fr))
+
+        out = CplxToReal(output_fr)
+        target_fr.requires_grad_()
+
+        targ = RealToCplx() (target_fr)
+        #print(target_fr)
+        targ2 = CplxToReal(targ)
+        pen = penalties(output_fr, reduction="sum")
+        loss_fr = fr_criterion(out,targ2) + pen
+
+        print(loss_fr)
         loss_fr.backward()
         fr_optimizer.step()
         loss_train_fr += loss_fr.data.item()
@@ -158,7 +185,7 @@ if __name__ == '__main__':
     # dataset parameters
     parser.add_argument('--batch_size', type=int, default=256, help='batch size used during training')
     parser.add_argument('--signal_dim', type=int, default=50, help='dimensionof the input signal')
-    parser.add_argument('--fr_size', type=int, default=1000, help='size of the frequency representation')
+    parser.add_argument('--fr_size', type=int, default=1360, help='size of the frequency representation') #1000
     parser.add_argument('--max_n_freq', type=int, default=10,
                         help='for each signal the number of frequencies is uniformly drawn between 1 and max_n_freq')
     parser.add_argument('--min_sep', type=float, default=1.,
@@ -200,8 +227,8 @@ if __name__ == '__main__':
                         help='initial learning rate for adam optimizer used for the frequency-representation module')
     parser.add_argument('--lr_fc', type=float, default=0.0003,
                         help='initial learning rate for adam optimizer used for the frequency-counting module')
-    parser.add_argument('--n_epochs_fr', type=int, default=200, help='number of epochs used to train the fr module')
-    parser.add_argument('--n_epochs_fc', type=int, default=100, help='number of epochs used to train the fc module')
+    parser.add_argument('--n_epochs_fr', type=int, default=2, help='number of epochs used to train the fr module')
+    parser.add_argument('--n_epochs_fc', type=int, default=2, help='number of epochs used to train the fc module')
     parser.add_argument('--save_epoch_freq', type=int, default=50,
                         help='frequency of saving checkpoints at the end of epochs')
     parser.add_argument('--numpy_seed', type=int, default=100)

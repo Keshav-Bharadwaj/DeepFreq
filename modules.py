@@ -1,4 +1,17 @@
 import torch.nn as nn
+import  torch
+import numpy as np
+# complex valued tensor class
+from cplxmodule import cplx
+# converters
+from cplxmodule.nn import RealToCplx, CplxToReal
+# layers of encapsulating other complex valued layers
+from cplxmodule.nn import CplxSequential
+# common layers
+from cplxmodule.nn import CplxConv1d, CplxLinear
+# activation layers
+from cplxmodule.nn import CplxModReLU,CplxBatchNorm1d
+from cplxmodule.nn.modules import CplxConvTranspose1d
 
 
 def set_fr_module(args):
@@ -10,8 +23,8 @@ def set_fr_module(args):
         net = PSnet(signal_dim=args.signal_dim, fr_size=args.fr_size, n_filters=args.fr_n_filters,
                     inner_dim=args.fr_inner_dim, n_layers=args.fr_n_layers, kernel_size=args.fr_kernel_size)
     elif args.fr_module_type == 'fr':
-        assert args.fr_size == args.fr_inner_dim * args.fr_upsampling, \
-            'The desired size of the frequency representation (fr_size) must be equal to inner_dim*upsampling'
+        #assert args.fr_size == args.fr_inner_dim * args.fr_upsampling, \
+        #    'The desired size of the frequency representation (fr_size) must be equal to inner_dim*upsampling'
         net = FrequencyRepresentationModule(signal_dim=args.signal_dim, n_filters=args.fr_n_filters,
                                             inner_dim=args.fr_inner_dim, n_layers=args.fr_n_layers,
                                             upsampling=args.fr_upsampling, kernel_size=args.fr_kernel_size,
@@ -72,7 +85,38 @@ class PSnet(nn.Module):
         output = self.out_layer(x)
         return output
 
+class FrequencyRepresentationModule(nn.Module):
+    def __init__(self, signal_dim=30, n_filters=8, n_layers=3, inner_dim=91,
+                 kernel_size=3, upsampling=5, kernel_out=25,n_input_features=456):
+        super(FrequencyRepresentationModule,self).__init__()
+        self.fr_size = inner_dim * upsampling
+        self.n_filters = n_filters
+        self.in_layer = CplxLinear(signal_dim, inner_dim * n_filters, bias=False)
 
+
+        mod = []
+        #kernel_size -1,
+        for n in range(n_layers):
+            mod += [
+                CplxConv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size // 2, bias=False,
+                          padding_mode='circular'),
+                CplxBatchNorm1d(n_filters),
+                CplxModReLU(),
+            ]
+        self.mod = CplxSequential(*mod)
+        self.out_layer = CplxConvTranspose1d(n_filters, 1, kernel_out, stride=upsampling,
+                                            padding=(kernel_out - upsampling + 1) // 2, output_padding=1, bias=False)
+
+
+    def forward(self, inp):
+
+        bsz = inp.size(0)
+        inp = inp.view(bsz, -1)
+        x = self.in_layer(inp).view(bsz, self.n_filters, -1)
+        x = self.mod(x)
+        x = self.out_layer(x).view(bsz,-1)
+        return x
+'''
 class FrequencyRepresentationModule(nn.Module):
     def __init__(self, signal_dim=50, n_filters=8, n_layers=3, inner_dim=125,
                  kernel_size=3, upsampling=8, kernel_out=25):
@@ -99,7 +143,7 @@ class FrequencyRepresentationModule(nn.Module):
         x = self.mod(x)
         x = self.out_layer(x).view(bsz, -1)
         return x
-
+'''
 
 class FrequencyCountingModule(nn.Module):
     def __init__(self, n_output, n_layers, n_filters, kernel_size, fr_size, downsampling, kernel_in):
