@@ -32,7 +32,15 @@ from cplxmodule.nn.masked import  named_masks
 
 logger = logging.getLogger(__name__)
 
+def my_loss(output, target):
+    ro=output.real
+    io=output.imag
+    rt=target.real
+    it=target.imag
 
+
+    loss = torch.mean(((ro - rt)**2)+((io - it)**2))
+    return loss
 def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, fr_scheduler, train_loader, val_loader,
                                    xgrid, epoch, tb_writer):
     """
@@ -48,6 +56,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         fr_optimizer.zero_grad()
         cplx = RealToCplx()(noisy_signal)
         output_fr = fr_module(cplx)
+
         y = named_masks(output_fr)
         real_input_model = torch.nn.Sequential(CplxToReal(output_fr))
 
@@ -58,7 +67,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         #print(target_fr)
         targ2 = CplxToReal(targ)
         pen = penalties(output_fr, reduction="sum")
-        loss_fr = fr_criterion(out,targ2) + pen
+        loss_fr = my_loss(output_fr,targ) #+ pen
 
         print(loss_fr)
         loss_fr.backward()
@@ -71,8 +80,12 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         if args.use_cuda:
             noisy_signal, target_fr = noisy_signal.cuda(), target_fr.cuda()
         with torch.no_grad():
-            output_fr = fr_module(noisy_signal)
-        loss_fr = fr_criterion(output_fr, target_fr)
+            cplx = RealToCplx()(noisy_signal)
+            output_fr = fr_module(cplx)
+            #output_fr = fr_module(noisy_signal)
+        #loss_fr = fr_criterion(output_fr, target_fr)
+        targ = RealToCplx()(target_fr)
+        loss_fr = my_loss(output_fr,targ)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
         f_hat = fr.find_freq(output_fr.cpu().detach().numpy(), nfreq, xgrid)
@@ -185,7 +198,7 @@ if __name__ == '__main__':
     # dataset parameters
     parser.add_argument('--batch_size', type=int, default=256, help='batch size used during training')
     parser.add_argument('--signal_dim', type=int, default=50, help='dimensionof the input signal')
-    parser.add_argument('--fr_size', type=int, default=1360, help='size of the frequency representation') #1000
+    parser.add_argument('--fr_size', type=int, default=680*2, help='size of the frequency representation') #1000
     parser.add_argument('--max_n_freq', type=int, default=10,
                         help='for each signal the number of frequencies is uniformly drawn between 1 and max_n_freq')
     parser.add_argument('--min_sep', type=float, default=1.,
