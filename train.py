@@ -34,18 +34,14 @@ logger = logging.getLogger(__name__)
 
 def my_loss(output, target):
     ro=output.real
-    ro1 = CplxToReal(ro)
     io=output.imag
-    io1 = CplxToReal(io)
-    io2 = torch.squeeze(io1,2)
     rt=target.real
-    rt1 = CplxToReal(rt)
+    rt2 = torch.squeeze(rt, 2)
     it=target.imag
-    it1 = CplxToReal(it)
-    it2 = torch.squeeze(it1, 2)
+    it2 = torch.squeeze(it, 2)
 
 
-    loss = torch.mean(((ro1 - rt1)**2)+((io2 - it2)**2))
+    loss = torch.mean(((ro - rt2)**2)+((io - it2)**2))
     return loss
 def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, fr_scheduler, train_loader, val_loader,
                                    xgrid, epoch, tb_writer):
@@ -72,7 +68,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         ctarg = RealToCplx() (targ)
 
         loss_fr = my_loss(output_fr2,ctarg)
-        #loss_fr = fr_criterion(output_fr,output_fr2))
+        #loss_fr = fr_criterion(output_fr2,ctarg)
         print(loss_fr)
         loss_fr.backward()
         fr_optimizer.step()
