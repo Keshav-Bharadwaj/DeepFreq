@@ -72,8 +72,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         ctarg = RealToCplx() (targ)
 
         loss_fr = my_loss(output_fr2,ctarg)
-        #loss_fr = fr_criterion(output_fr,output_fr2)
-
+        #loss_fr = fr_criterion(output_fr,output_fr2))
         print(loss_fr)
         loss_fr.backward()
         fr_optimizer.step()
