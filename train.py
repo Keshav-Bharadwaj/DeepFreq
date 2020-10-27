@@ -220,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--snr', type=float, default=1., help='snr parameter')
     # frequency-representation (fr) module parameters
     parser.add_argument('--fr_module_type', type=str, default='fr', help='type of the fr module: [fr | psnet]')
-    parser.add_argument('--fr_n_layers', type=int, default=2, help='number of convolutional layers in the fr module')
+    parser.add_argument('--fr_n_layers', type=int, default=20, help='number of convolutional layers in the fr module')
     parser.add_argument('--fr_n_filters', type=int, default=64, help='number of filters per layer in the fr module')
     parser.add_argument('--fr_kernel_size', type=int, default=3,
                         help='filter size in the convolutional blocks of the fr module')
