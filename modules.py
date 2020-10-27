@@ -23,8 +23,8 @@ def set_fr_module(args):
         net = PSnet(signal_dim=args.signal_dim, fr_size=args.fr_size, n_filters=args.fr_n_filters,
                     inner_dim=args.fr_inner_dim, n_layers=args.fr_n_layers, kernel_size=args.fr_kernel_size)
     elif args.fr_module_type == 'fr':
-        #assert args.fr_size == args.fr_inner_dim * args.fr_upsampling, \
-        #    'The desired size of the frequency representation (fr_size) must be equal to inner_dim*upsampling'
+        assert args.fr_size == args.fr_inner_dim * args.fr_upsampling, \
+            'The desired size of the frequency representation (fr_size) must be equal to inner_dim*upsampling'
         net = FrequencyRepresentationModule(signal_dim=args.signal_dim, n_filters=args.fr_n_filters,
                                             inner_dim=args.fr_inner_dim, n_layers=args.fr_n_layers,
                                             upsampling=args.fr_upsampling, kernel_size=args.fr_kernel_size,
@@ -95,10 +95,9 @@ class FrequencyRepresentationModule(nn.Module):
 
 
         mod = []
-        #kernel_size -1,
         for n in range(n_layers):
             mod += [
-                CplxConv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size-1, bias=False,
+                CplxConv1d(n_filters, n_filters, kernel_size=kernel_size, padding= kernel_size // 2 + 1, bias=False,
                           padding_mode='circular'),
                 CplxBatchNorm1d(n_filters),
                 CplxModReLU(),
