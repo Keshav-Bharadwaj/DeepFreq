@@ -29,6 +29,9 @@ from cplxmodule.nn import CplxConv1d, CplxLinear
 from cplxmodule.nn import CplxModReLU,CplxBatchNorm1d
 from cplxmodule.nn.modules import CplxConvTranspose1d
 from cplxmodule.nn.masked import  named_masks
+from torchsummary import summary
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +58,21 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         if args.use_cuda:
             clean_signal, target_fr = clean_signal.cuda(), target_fr.cuda()
         noisy_signal = noise_torch(clean_signal, args.snr, args.noise)
+
         fr_optimizer.zero_grad()
         t = noisy_signal.shape
         n1 = torch.reshape(noisy_signal,(t[0],t[2],t[1]))
         cplx = RealToCplx()(n1)
-        #output_fr = fr_module(cplx)
-        output_fr2 = fr_module(cplx.conj)
+        output_fr = fr_module(cplx)
+        #output_fr2 = fr_module(cplx.conj)
+
         target_fr.requires_grad_()
         target_fr = torch.unsqueeze(target_fr,2)
         targ = torch.zeros((target_fr.shape[0], target_fr.shape[1], 2))
         targ[:,:,0:1] = target_fr
         ctarg = RealToCplx() (targ)
 
-        loss_fr = my_loss(output_fr2,ctarg)
+        loss_fr = my_loss(output_fr,ctarg)
         #loss_fr = fr_criterion(output_fr2,ctarg)
         print(loss_fr)
         loss_fr.backward()
@@ -81,11 +86,16 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
             noisy_signal, target_fr = noisy_signal.cuda(), target_fr.cuda()
         with torch.no_grad():
             cplx = RealToCplx()(noisy_signal)
-            output_fr = fr_module(cplx)
-            #output_fr = fr_module(noisy_signal)
+            #output_fr = fr_module(cplx.conj)
+
+            output_fr = fr_module(noisy_signal)
         #loss_fr = fr_criterion(output_fr, target_fr)
-        targ = RealToCplx()(target_fr)
-        loss_fr = my_loss(output_fr,targ)
+        target_fr.requires_grad_()
+        target_fr = torch.unsqueeze(target_fr, 2)
+        targ = torch.zeros((target_fr.shape[0], target_fr.shape[1], 2))
+        targ[:, :, 0:1] = target_fr
+        ctarg = RealToCplx()(targ)
+        loss_fr = my_loss(output_fr,ctarg)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
         f_hat = fr.find_freq(output_fr.cpu().detach().numpy(), nfreq, xgrid)
@@ -198,7 +208,7 @@ if __name__ == '__main__':
     # dataset parameters
     parser.add_argument('--batch_size', type=int, default=256, help='batch size used during training')
     parser.add_argument('--signal_dim', type=int, default=50, help='dimensionof the input signal')
-    parser.add_argument('--fr_size', type=int, default=680, help='size of the frequency representation') #1000  680
+    parser.add_argument('--fr_size', type=int, default=1000, help='size of the frequency representation') #1000  680
     parser.add_argument('--max_n_freq', type=int, default=10,
                         help='for each signal the number of frequencies is uniformly drawn between 1 and max_n_freq')
     parser.add_argument('--min_sep', type=float, default=1.,
@@ -210,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--snr', type=float, default=1., help='snr parameter')
     # frequency-representation (fr) module parameters
     parser.add_argument('--fr_module_type', type=str, default='fr', help='type of the fr module: [fr | psnet]')
-    parser.add_argument('--fr_n_layers', type=int, default=20, help='number of convolutional layers in the fr module')
+    parser.add_argument('--fr_n_layers', type=int, default=2, help='number of convolutional layers in the fr module')
     parser.add_argument('--fr_n_filters', type=int, default=64, help='number of filters per layer in the fr module')
     parser.add_argument('--fr_kernel_size', type=int, default=3,
                         help='filter size in the convolutional blocks of the fr module')
