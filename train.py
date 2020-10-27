@@ -17,7 +17,9 @@ from cplxmodule.nn import RealToCplx
 
 logger = logging.getLogger(__name__)
 
-def my_loss(output, target):
+def my_loss(output, target,args ):
+    if args.use_cuda:
+        output, target = output.cuda(), target.cuda()
     ro=output.real
     io=output.imag
     rt=target.real
@@ -50,7 +52,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         targ[:,:,0:1] = target_fr
         ctarg = RealToCplx() (targ)
 
-        loss_fr = my_loss(output_fr,ctarg)
+        loss_fr = my_loss(output_fr,ctarg,args)
         print(loss_fr)
         loss_fr.backward()
         fr_optimizer.step()
@@ -73,7 +75,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         targ2 = torch.zeros((target_fr2.shape[0], target_fr2.shape[1], 2))
         targ2[:, :, 0:1] = target_fr2
         ctarg2 = RealToCplx()(targ2)
-        loss_fr = my_loss(output_fr2,ctarg2)
+        loss_fr = my_loss(output_fr2,ctarg2,args)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
         f_hat = fr.find_freq(output_fr.cpu().detach().numpy(), nfreq, xgrid)
