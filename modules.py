@@ -98,7 +98,7 @@ class FrequencyRepresentationModule(nn.Module):
         #kernel_size -1,
         for n in range(n_layers):
             mod += [
-                CplxConv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size //2, bias=False,
+                CplxConv1d(n_filters, n_filters, kernel_size=kernel_size, padding=kernel_size-1, bias=False,
                           padding_mode='circular'),
                 CplxBatchNorm1d(n_filters),
                 CplxModReLU(),
