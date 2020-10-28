@@ -17,6 +17,14 @@ from cplxmodule.nn import RealToCplx,CplxToReal
 
 logger = logging.getLogger(__name__)
 
+def cplxloss(output, target, fr_criterion, args):
+    if args.use_cuda:
+        output, target = output.cuda(), target.cuda()
+
+    return 0.5*(fr_criterion(output.real, target.real) + fr_criterion(output.imag, target.imag))
+
+
+
 def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, fr_scheduler, train_loader, val_loader,
                                    xgrid, epoch, tb_writer):
     """
@@ -42,7 +50,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         target_fr = RealToCplx()(target_fr_tmp)
 
         #
-        loss_fr = 0.5*(fr_criterion(output.real, target.real) + fr_criterion(output.imag, target.imag))
+        loss_fr = cplxloss(output_fr, target_fr, fr_criterion, args)
         loss_fr.backward()
         fr_optimizer.step()
         loss_train_fr += loss_fr.data.item()
@@ -63,7 +71,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         target_fr_tmp[...,0] = target_fr
         target_fr = RealToCplx()(target_fr_tmp)
 
-        loss_fr = 0.5*(fr_criterion(output.real, target.real) + fr_criterion(output.imag, target.imag))
+        loss_fr = cplxloss(output_fr, target_fr, fr_criterion, args)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
         f_hat = fr.find_freq(output_fr.real.cpu().detach().numpy().squeeze(), nfreq, xgrid)
