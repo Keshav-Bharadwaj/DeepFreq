@@ -13,7 +13,7 @@ from data import fr
 from data.loss import fnr
 import numpy as np
 
-from cplxmodule.nn import RealToCplx
+from cplxmodule.nn import RealToCplx,CplxToReal
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ def my_loss(output, target,args ):
     it2 = torch.squeeze(it, 2)
     return(torch.mean(((ro - rt2)**2)+((io - it2)**2)))
 
+
 def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, fr_scheduler, train_loader, val_loader,
                                    xgrid, epoch, tb_writer):
     """
@@ -36,6 +37,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
     epoch_start_time = time.time()
     fr_module.train()
     loss_train_fr = 0
+
     for batch_idx, (clean_signal, target_fr, freq) in enumerate(train_loader):
         if args.use_cuda:
             clean_signal, target_fr = clean_signal.cuda(), target_fr.cuda()
@@ -64,7 +66,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         if args.use_cuda:
             noisy_signal, target_fr2 = noisy_signal.cuda(), target_fr2.cuda()
         t1 = noisy_signal.shape
-        n11 = torch.reshape(noisy_signal, (t1[0], t1[2], 1[1]))
+        n11 = torch.reshape(noisy_signal, (t1[0], t1[2], t1[1]))
         cplx2 = RealToCplx()(n11)
 
         with torch.no_grad():
@@ -78,7 +80,7 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
         loss_fr = my_loss(output_fr2,ctarg2,args)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
-        f_hat = fr.find_freq(output_fr.cpu().detach().numpy(), nfreq, xgrid)
+        f_hat = fr.find_freq(output_fr2.cpu().detach().numpy(), nfreq, xgrid)
         fnr_val += fnr(f_hat, freq.cpu().numpy(), args.signal_dim)
 
     loss_train_fr /= args.n_training
@@ -95,13 +97,15 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
                 fnr_val)
 
 
-def train_frequency_counting(args, fr_module, fc_module, fc_optimizer, fc_criterion, fc_scheduler, train_loader,
+
+
+def train_frequency_counting(args, fr_module2, fc_module, fc_optimizer, fc_criterion, fc_scheduler, train_loader,
                              val_loader, epoch, tb_writer):
     """
     Train the frequency-counting module for one epoch
     """
     epoch_start_time = time.time()
-    fr_module.eval()
+    fr_module2.eval()
     fc_module.train()
     loss_train_fc, acc_train_fc = 0, 0
     for batch_idx, (clean_signal, target_fr, freq) in enumerate(train_loader):
@@ -114,7 +118,7 @@ def train_frequency_counting(args, fr_module, fc_module, fc_optimizer, fc_criter
         if args.fc_module_type == 'classification':
             nfreq = nfreq - 1
         with torch.no_grad():
-            output_fr = fr_module(noisy_signal)
+            output_fr = fr_module2(noisy_signal)
             output_fr = output_fr.detach()
         output_fc = fc_module(output_fr)
         if args.fc_module_type == 'regression':
@@ -149,7 +153,7 @@ def train_frequency_counting(args, fr_module, fc_module, fc_optimizer, fc_criter
         if args.fc_module_type == 'classification':
             nfreq = nfreq - 1
         with torch.no_grad():
-            output_fr = fr_module(noisy_signal)
+            output_fr = fr_module2(noisy_signal)
             output_fc = fc_module(output_fr)
         if args.fc_module_type == 'regression':
             output_fc = output_fc.view(output_fc.size(0))
@@ -177,7 +181,6 @@ def train_frequency_counting(args, fr_module, fc_module, fc_optimizer, fc_criter
                 "Training accuracy: %.2f %%, Validation accuracy: %.2f %%",
                 epoch, args.n_epochs_fr + args.n_epochs_fc, time.time() - epoch_start_time, loss_train_fc,
                 loss_val_fc, acc_train_fc, acc_val_fc)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -267,6 +270,7 @@ if __name__ == '__main__':
     val_loader = dataset.make_eval_data(args)
 
     fr_module = modules.set_fr_module(args)
+    fr_module2 = modules.set_fr_module2(args)
     fc_module = modules.set_fc_module(args)
     fr_optimizer, fr_scheduler = util.set_optim(args, fr_module, 'fr')
     fc_optimizer, fc_scheduler = util.set_optim(args, fc_module, 'fc')
@@ -293,7 +297,7 @@ if __name__ == '__main__':
                                            fr_scheduler=fr_scheduler, train_loader=train_loader, val_loader=val_loader,
                                            xgrid=xgrid, epoch=epoch, tb_writer=tb_writer)
         else:
-            train_frequency_counting(args=args, fr_module=fr_module, fc_module=fc_module,
+            train_frequency_counting(args=args, fr_module2=fr_module2, fc_module=fc_module,
                                      fc_optimizer=fc_optimizer, fc_criterion=fc_criterion,
                                      fc_scheduler=fc_scheduler, train_loader=train_loader,
                                      val_loader=val_loader, epoch=epoch, tb_writer=tb_writer)
