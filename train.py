@@ -17,16 +17,12 @@ from cplxmodule.nn import RealToCplx,CplxToReal
 
 logger = logging.getLogger(__name__)
 
-def my_loss(output, target,args ):
+def cplxloss(output, target, fr_criterion, args):
     if args.use_cuda:
         output, target = output.cuda(), target.cuda()
-    ro=output.real
-    io=output.imag
-    rt=target.real
-    rt2 = torch.squeeze(rt, 2)
-    it=target.imag
-    it2 = torch.squeeze(it, 2)
-    return(torch.mean(((ro - rt2)**2)+((io - it2)**2)))
+
+    return 0.5*(fr_criterion(output.real, target.real) + fr_criterion(output.imag, target.imag))
+
 
 
 def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, fr_scheduler, train_loader, val_loader,
@@ -41,46 +37,43 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
     for batch_idx, (clean_signal, target_fr, freq) in enumerate(train_loader):
         if args.use_cuda:
             clean_signal, target_fr = clean_signal.cuda(), target_fr.cuda()
+
         noisy_signal = noise_torch(clean_signal, args.snr, args.noise)
 
         fr_optimizer.zero_grad()
-        t = noisy_signal.shape
-        n1 = torch.reshape(noisy_signal,(t[0],t[2],t[1]))
-        cplx = RealToCplx()(n1)
-        output_fr = fr_module(cplx)
-        target_fr.requires_grad_()
-        target_fr = torch.unsqueeze(target_fr,2)
-        targ = torch.zeros((target_fr.shape[0], target_fr.shape[1], 2))
-        targ[:,:,0:1] = target_fr
-        ctarg = RealToCplx() (targ)
+        noisy_signal = RealToCplx()(noisy_signal.permute(0,2,1))  # switch axes to move real/imag to end
+        output_fr = fr_module(noisy_signal)[...,None]
+        # convert target_fr to complex
+        target_fr_tmp = torch.zeros((*target_fr.shape, 2))
+        target_fr_tmp[...,0] = target_fr
+        target_fr = RealToCplx()(target_fr_tmp)
 
-        loss_fr = my_loss(output_fr,ctarg,args)
-        print(loss_fr)
+        #
+        loss_fr = cplxloss(output_fr, target_fr, fr_criterion, args)
         loss_fr.backward()
         fr_optimizer.step()
         loss_train_fr += loss_fr.data.item()
-
+    
     fr_module.eval()
     loss_val_fr, fnr_val = 0, 0
-    for batch_idx, (noisy_signal, _, target_fr2, freq) in enumerate(val_loader):
+    for batch_idx, (noisy_signal, _, target_fr, freq) in enumerate(val_loader):
         if args.use_cuda:
-            noisy_signal, target_fr2 = noisy_signal.cuda(), target_fr2.cuda()
-        t1 = noisy_signal.shape
-        n11 = torch.reshape(noisy_signal, (t1[0], t1[2], t1[1]))
-        cplx2 = RealToCplx()(n11)
+            noisy_signal, target_fr = noisy_signal.cuda(), target_fr.cuda()
+
+        noisy_signal = RealToCplx()(noisy_signal.permute(0,2,1))
 
         with torch.no_grad():
-            output_fr2 = fr_module(cplx2)
+            output_fr = fr_module(noisy_signal)[...,None]
 
-        target_fr2.requires_grad_()
-        target_fr2 = torch.unsqueeze(target_fr2, 2)
-        targ2 = torch.zeros((target_fr2.shape[0], target_fr2.shape[1], 2))
-        targ2[:, :, 0:1] = target_fr2
-        ctarg2 = RealToCplx()(targ2)
-        loss_fr = my_loss(output_fr2,ctarg2,args)
+        # convert target_fr to complex
+        target_fr_tmp = torch.zeros((*target_fr.shape, 2))
+        target_fr_tmp[...,0] = target_fr
+        target_fr = RealToCplx()(target_fr_tmp)
+
+        loss_fr = cplxloss(output_fr, target_fr, fr_criterion, args)
         loss_val_fr += loss_fr.data.item()
         nfreq = (freq >= -0.5).sum(dim=1)
-        f_hat = fr.find_freq(output_fr2.cpu().detach().numpy(), nfreq, xgrid)
+        f_hat = fr.find_freq(output_fr.real.cpu().detach().numpy().squeeze(), nfreq, xgrid)
         fnr_val += fnr(f_hat, freq.cpu().numpy(), args.signal_dim)
 
     loss_train_fr /= args.n_training
@@ -99,13 +92,13 @@ def train_frequency_representation(args, fr_module, fr_optimizer, fr_criterion, 
 
 
 
-def train_frequency_counting(args, fr_module2, fc_module, fc_optimizer, fc_criterion, fc_scheduler, train_loader,
+def train_frequency_counting(args, fr_module, fc_module, fc_optimizer, fc_criterion, fc_scheduler, train_loader,
                              val_loader, epoch, tb_writer):
     """
     Train the frequency-counting module for one epoch
     """
     epoch_start_time = time.time()
-    fr_module2.eval()
+    fr_module.eval()
     fc_module.train()
     loss_train_fc, acc_train_fc = 0, 0
     for batch_idx, (clean_signal, target_fr, freq) in enumerate(train_loader):
@@ -118,8 +111,10 @@ def train_frequency_counting(args, fr_module2, fc_module, fc_optimizer, fc_crite
         if args.fc_module_type == 'classification':
             nfreq = nfreq - 1
         with torch.no_grad():
-            output_fr = fr_module2(noisy_signal)
+            noisy_signal = RealToCplx()(noisy_signal.permute(0, 2, 1))  # switch axes to move real/imag to end
+            output_fr = fr_module(noisy_signal)[..., None]
             output_fr = output_fr.detach()
+            output_fr = torch.squeeze(output_fr.real)
         output_fc = fc_module(output_fr)
         if args.fc_module_type == 'regression':
             output_fc = output_fc.view(output_fc.size(0))
@@ -153,7 +148,9 @@ def train_frequency_counting(args, fr_module2, fc_module, fc_optimizer, fc_crite
         if args.fc_module_type == 'classification':
             nfreq = nfreq - 1
         with torch.no_grad():
-            output_fr = fr_module2(noisy_signal)
+            noisy_signal = RealToCplx()(noisy_signal.permute(0, 2, 1))  # switch axes to move real/imag to end
+            output_fr = fr_module(noisy_signal)[..., None]
+            output_fr = torch.squeeze(output_fr.real)
             output_fc = fc_module(output_fr)
         if args.fc_module_type == 'regression':
             output_fc = output_fc.view(output_fc.size(0))
@@ -270,7 +267,6 @@ if __name__ == '__main__':
     val_loader = dataset.make_eval_data(args)
 
     fr_module = modules.set_fr_module(args)
-    fr_module2 = modules.set_fr_module2(args)
     fc_module = modules.set_fc_module(args)
     fr_optimizer, fr_scheduler = util.set_optim(args, fr_module, 'fr')
     fc_optimizer, fc_scheduler = util.set_optim(args, fc_module, 'fc')
@@ -297,7 +293,7 @@ if __name__ == '__main__':
                                            fr_scheduler=fr_scheduler, train_loader=train_loader, val_loader=val_loader,
                                            xgrid=xgrid, epoch=epoch, tb_writer=tb_writer)
         else:
-            train_frequency_counting(args=args, fr_module2=fr_module2, fc_module=fc_module,
+            train_frequency_counting(args=args, fr_module=fr_module, fc_module=fc_module,
                                      fc_optimizer=fc_optimizer, fc_criterion=fc_criterion,
                                      fc_scheduler=fc_scheduler, train_loader=train_loader,
                                      val_loader=val_loader, epoch=epoch, tb_writer=tb_writer)
