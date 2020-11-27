@@ -83,7 +83,7 @@ class FrequencyRepresentationModule(nn.Module):
         super(FrequencyRepresentationModule,self).__init__()
         self.fr_size = inner_dim * upsampling
         self.n_filters = n_filters
-        self.in_layer = CplxLinear(2*signal_dim, inner_dim * n_filters, bias=False)
+        self.in_layer = CplxLinear(signal_dim, inner_dim * n_filters, bias=False)
 
 
         mod = []
