@@ -1,17 +1,18 @@
-# Code and Pretrained Networks from <br>"Data-driven Estimation of Sinusoid Frequencies"
+# Code and Pretrained Networks from <br>"Complex Learning for Super-Resolution Convolutional Networks in Multi-Static Radars"
 
-This repository contains information, code and models from the paper [Data-driven Estimation of Sinusoid Frequencies](https://arxiv.org/abs/1906.00823) by Gautier Izacard, [Sreyas Mohan](https://sreyas-mohan.github.io) and [Carlos Fernandez-Granda](https://cims.nyu.edu/~cfgranda/). Please visit the [project webpage here](https://sreyas-mohan.github.io/DeepFreq/). 
+This repository contains information, code and models from the paper [Complex Learning for Super-Resolution
+Convolutional Networks in Multi-Static Radars] by Keshav Bharadwaj, [Steffen Schieler,](https://github.com/st0nedB/DeepFreq) and [Prof. Giovanni Del Galdo]. Please visit the [project webpage here](https://github.com/Keshav-Bharadwaj/DeepFreq/). 
 
 ## Code and Pre-trained Models
 
 Please refer to [`requirements.txt`](requirements.txt) for required packages. 
 
 ### pre-trained models
-The directory [`pretrained_models`](pretrained_models) contains the pretained models of DeepFreq. 
+The directory [`pretrained_models`](pretrained_models) contains the pretained models of Complex DeepFreq. 
 
 ### Example code for using Pre-Trained models
 
-In [`example_notebook.ipynb`](example_notebook.ipynb), DeepFreq is applied to different signals and the results are visualized. 
+In [`Complex_DeepFreq.ipynb`](Complex_DeepFreq.ipynb), Complex DeepFreq is applied to different signals and the results are visualized. 
 
 
 ### Train
@@ -44,7 +45,6 @@ python test.py \
 	--overwrite
 ```
 
-The implementation of CBLasso is based on the code available [here](http://www.lsta.upmc.fr/boyer/codes/html_CBlasso_vs_Blasso/script_example1_CBlasso_vs_Blasso.html). CBLasso takes a long time to run, therefore, the result of running CBLasso on [`test_dataset`](test_dataset) is precomputed and provided in [`test_dataset/cblasso_results`](test_dataset/cblasso_results). Performance of CBLasso is obtained with [`run_cblasso.py`](run_cblasso.py), it requires to install CVX and MATLAB for Python.
 
 
 
